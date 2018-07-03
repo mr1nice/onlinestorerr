@@ -1,0 +1,80 @@
+package com.salesmanager.shop.controller;
+
+import com.salesmanager.core.business.exception.ServiceException;
+import com.salesmanager.core.business.services.content.ContentService;
+import com.salesmanager.core.model.content.FileContentType;
+import com.salesmanager.core.model.content.OutputContentFile;
+import com.salesmanager.shop.constants.Constants;
+import com.salesmanager.shop.store.controller.AbstractController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+import static com.salesmanager.core.model.content.FileContentType.PRODUCT_DIGITAL;
+import static com.salesmanager.core.model.content.FileContentType.STATIC_FILE;
+import static com.salesmanager.shop.constants.Constants.FILE_NOT_FOUND;
+
+@Controller
+public class FilesController extends AbstractController {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(FilesController.class);
+	
+
+	
+	@Inject
+	private ContentService contentService;
+
+
+    @RequestMapping("/static/files/{storeCode}/{fileName}.{extension}")
+    public @ResponseBody
+    byte[] downloadFile(@PathVariable final String storeCode, @PathVariable final String fileName, @PathVariable final String extension, HttpServletRequest request, HttpServletResponse response) throws IOException, ServiceException {
+
+        // example -> /files/<store code>/myfile.css
+        FileContentType fileType = STATIC_FILE;
+
+        // needs to query the new API
+        OutputContentFile file = contentService.getContentFile(storeCode, fileType, new StringBuilder().append(fileName).append(".").append(extension).toString());
+
+
+        if (file != null) {
+            return file.getFile().toByteArray();
+        } else {
+            LOGGER.debug("File not found " + fileName + "." + extension);
+            response.sendError(404, FILE_NOT_FOUND);
+            return null;
+        }
+    }
+
+    @PreAuthorize("hasRole('PRODUCTS')")
+    @RequestMapping("/admin/files/downloads/{storeCode}/{fileName}.{extension}")
+    public @ResponseBody
+    byte[] downloadProduct(@PathVariable final String storeCode, @PathVariable final String fileName, @PathVariable final String extension, HttpServletRequest request, HttpServletResponse response) throws Exception {
+
+        FileContentType fileType = PRODUCT_DIGITAL;
+
+        String fileNameAndExtension = new StringBuilder().append(fileName).append(".").append(extension).toString();
+
+        // needs to query the new API
+        OutputContentFile file = contentService.getContentFile(storeCode, fileType, fileNameAndExtension);
+
+
+        if (file != null) {
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + fileNameAndExtension + "\"");
+            return file.getFile().toByteArray();
+        } else {
+            LOGGER.debug("File not found " + fileName + "." + extension);
+            response.sendError(404, FILE_NOT_FOUND);
+            return null;
+        }
+    }
+
+}
